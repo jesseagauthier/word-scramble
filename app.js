@@ -59,7 +59,7 @@ function App() {
 		() => parseInt(localStorage.getItem('strikes'), 10) || 0
 	)
 	const [passes, setPasses] = React.useState(3)
-	const [inputAnimation, setInputAnimation] = React.useState('') // State to control the input animation
+	const [inputAnimation, setInputAnimation] = React.useState('')
 
 	React.useEffect(() => {
 		localStorage.setItem('words', JSON.stringify(words))
