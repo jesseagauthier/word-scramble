@@ -13,7 +13,10 @@ function App() {
 	const [points, setPoints] = React.useState(0)
 	const [strikes, setStrikes] = React.useState(0)
 	const [passes, setPasses] = React.useState(3)
-	const [arrangedLetters, setArrangedLetters] = React.useState([])
+	const [arrangedLetters, setArrangedLetters] = React.useState({
+		letters: [],
+		positions: [],
+	})
 	const [feedbackMessage, setFeedbackMessage] = React.useState('')
 
 	const fetchWords = () => {
@@ -23,7 +26,6 @@ function App() {
 				const shuffledWords = shuffle(data)
 				setWords(shuffledWords)
 				setCurrentWord(shuffle(shuffledWords[0]))
-				console.log('Words fetched:', shuffledWords)
 			})
 			.catch((error) => {
 				console.error('Error fetching words:', error)
@@ -38,19 +40,57 @@ function App() {
 
 	React.useEffect(() => {
 		if (words.length > 0) {
-			setCurrentWord(shuffle(words[0])) // Shuffle the first word to scramble it
-			setArrangedLetters([])
+			setCurrentWord(shuffle(words[0]))
+			setArrangedLetters({ letters: [], positions: [] })
 		}
 	}, [words])
 
-	function handleDragStart(e, letter) {
+	function handleDragStart(e, letter, index) {
 		e.dataTransfer.setData('text/plain', letter)
+		e.dataTransfer.setData('index', index)
 	}
 
 	function handleDrop(e) {
 		e.preventDefault()
 		const letter = e.dataTransfer.getData('text')
-		setArrangedLetters((arrangedLetters) => [...arrangedLetters, letter])
+		const startIndex = parseInt(e.dataTransfer.getData('index'), 10)
+
+		// Ensure the drop area is valid
+		const dropArea = e.target.closest('.drop-area')
+		if (!dropArea) {
+			alert('Invalid drop zone')
+			return
+		}
+
+		// Determine the drop position
+		const dropAreaRect = dropArea.getBoundingClientRect()
+		const x = e.clientX - dropAreaRect.left
+		let dropIndex = arrangedLetters.letters.length // Default to adding to the end
+
+		// Calculate the position to insert based on the drop location
+		if (arrangedLetters.positions.length > 0) {
+			dropIndex = Math.floor(
+				x / (dropAreaRect.width / arrangedLetters.letters.length)
+			)
+			dropIndex = Math.min(dropIndex, arrangedLetters.letters.length)
+		}
+
+		// Prepare the new state
+		let newLetters = [...arrangedLetters.letters]
+		let newPositions = [...arrangedLetters.positions]
+
+		// If moving a letter within the drop area, adjust the arrays accordingly
+		if (startIndex >= 0 && startIndex < newLetters.length) {
+			newLetters.splice(startIndex, 1)
+			newPositions.splice(startIndex, 1)
+		}
+
+		// Insert the letter in the calculated position
+		newLetters.splice(dropIndex, 0, letter)
+		newPositions.splice(dropIndex, 0, dropIndex)
+
+		// Update the state with the new arrangements
+		setArrangedLetters({ letters: newLetters, positions: newPositions })
 	}
 
 	function handleDragOver(e) {
@@ -58,28 +98,26 @@ function App() {
 	}
 
 	function submitWord() {
-		const userWord = arrangedLetters.join('')
+		const userWord = arrangedLetters.letters.join('')
 		if (userWord === words[0]) {
 			setFeedbackMessage('Correct! Great job!')
 			setPoints(points + 1)
 			fetchWords()
-			// setWords(words.slice(1))
 		} else {
 			setFeedbackMessage('Oops! Try again!')
 			setStrikes(strikes + 1)
 		}
-		setArrangedLetters([])
+		setArrangedLetters({ letters: [], positions: [] })
 	}
 
 	function resetGame() {
 		setPoints(0)
 		setStrikes(0)
 		setPasses(3)
-		setArrangedLetters([])
+		setArrangedLetters({ letters: [], positions: [] })
 		setFeedbackMessage('')
 		fetchWords()
 	}
-
 	return (
 		<div
 			className='flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 space-y-4'
@@ -111,17 +149,21 @@ function App() {
 				))}
 			</div>
 			<div
-				className='flex flex-wrap justify-center gap-2 border-2 border-dashed border-gray-400 p-4'
+				className='drop-area  min-w-[200px] min-h-[50px] flex flex-wrap justify-center gap-2 border-2 border-dashed border-gray-400 p-4'
 				onDrop={handleDrop}
 				onDragOver={handleDragOver}
 				aria-dropeffect='move'
 				role='grid'
 				aria-label='Drop zone for arranging letters'
 			>
-				{arrangedLetters.map((letter, index) => (
+				{arrangedLetters.letters.map((letter, index) => (
 					<div
 						key={index}
-						className='w-12 h-12 flex items-center justify-center bg-white border border-gray-300 rounded shadow'
+						draggable='true'
+						onDragStart={(e) =>
+							handleDragStart(e, letter, arrangedLetters.positions[index])
+						}
+						className='w-12 h-12 flex items-center justify-center bg-white border border-gray-300 rounded shadow capitalize cursor-pointer'
 						role='gridcell'
 					>
 						{letter}
