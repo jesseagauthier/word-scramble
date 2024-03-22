@@ -1,159 +1,164 @@
-/**********************************************
- * STARTER CODE
- **********************************************/
-
-/**
- * shuffle()
- * Shuffle the contents of an array
- *   depending the datatype of the source
- * Makes a copy. Does NOT shuffle the original.
- * Based on Steve Griffith's array shuffle prototype
- * @Parameters: Array or string
- * @Return: Scrambled Array or string, based on the provided parameter
- */
 function shuffle(src) {
 	const copy = [...src]
-
-	const length = copy.length
-	for (let i = 0; i < length; i++) {
-		const x = copy[i]
-		const y = Math.floor(Math.random() * length)
-		const z = copy[y]
-		copy[i] = z
-		copy[y] = x
+	for (let i = 0; i < copy.length; i++) {
+		const j = Math.floor(Math.random() * (i + 1))
+		;[copy[i], copy[j]] = [copy[j], copy[i]]
 	}
-
-	if (typeof src === 'string') {
-		return copy.join('')
-	}
-
-	return copy
+	return typeof src === 'string' ? copy.join('') : copy
 }
 
-/**********************************************
- * YOUR CODE BELOW
- **********************************************/
-const initialWords = [
-	'react',
-	'javascript',
-	'array',
-	'function',
-	'component',
-	'props',
-	'state',
-	'hooks',
-	'context',
-	'reducer',
-]
-
 function App() {
-	const [words, setWords] = React.useState(
-		() => JSON.parse(localStorage.getItem('words')) || shuffle(initialWords)
-	)
-	const [currentWord, setCurrentWord] = React.useState(() => shuffle(words[0]))
-	const [input, setInput] = React.useState('')
-	const [points, setPoints] = React.useState(
-		() => parseInt(localStorage.getItem('points'), 10) || 0
-	)
-	const [strikes, setStrikes] = React.useState(
-		() => parseInt(localStorage.getItem('strikes'), 10) || 0
-	)
+	const [words, setWords] = React.useState([])
+	const [currentWord, setCurrentWord] = React.useState('')
+	const [points, setPoints] = React.useState(0)
+	const [strikes, setStrikes] = React.useState(0)
 	const [passes, setPasses] = React.useState(3)
-	const [inputAnimation, setInputAnimation] = React.useState('')
+	const [arrangedLetters, setArrangedLetters] = React.useState([])
+	const [feedbackMessage, setFeedbackMessage] = React.useState('')
+
+	const fetchWords = () => {
+		fetch('https://random-word-api.herokuapp.com/word?length=5')
+			.then((response) => response.json())
+			.then((data) => {
+				const shuffledWords = shuffle(data)
+				setWords(shuffledWords)
+				setCurrentWord(shuffle(shuffledWords[0]))
+				console.log('Words fetched:', shuffledWords)
+			})
+			.catch((error) => {
+				console.error('Error fetching words:', error)
+				setFeedbackMessage('Failed to fetch new words, please try again later.')
+			})
+	}
+
+	// Fetch words from the API
+	React.useEffect(() => {
+		fetchWords()
+	}, [])
 
 	React.useEffect(() => {
-		localStorage.setItem('words', JSON.stringify(words))
-		localStorage.setItem('points', points.toString())
-		localStorage.setItem('strikes', strikes.toString())
-	}, [words, points, strikes])
+		if (words.length > 0) {
+			setCurrentWord(shuffle(words[0])) // Shuffle the first word to scramble it
+			setArrangedLetters([])
+		}
+	}, [words])
 
-	function handleGuess(e) {
+	function handleDragStart(e, letter) {
+		e.dataTransfer.setData('text/plain', letter)
+	}
+
+	function handleDrop(e) {
 		e.preventDefault()
-		if (input.toLowerCase() === words[0]) {
+		const letter = e.dataTransfer.getData('text')
+		setArrangedLetters((arrangedLetters) => [...arrangedLetters, letter])
+	}
+
+	function handleDragOver(e) {
+		e.preventDefault()
+	}
+
+	function submitWord() {
+		const userWord = arrangedLetters.join('')
+		if (userWord === words[0]) {
+			setFeedbackMessage('Correct! Great job!')
 			setPoints(points + 1)
-			const newWords = words.slice(1)
-			setWords(newWords)
-			setCurrentWord(shuffle(newWords[0] || ''))
-			setInputAnimation('')
+			fetchWords()
+			// setWords(words.slice(1))
 		} else {
+			setFeedbackMessage('Oops! Try again!')
 			setStrikes(strikes + 1)
-			setInputAnimation('animate__animated animate__headShake')
-			setTimeout(() => setInputAnimation(''), 1000)
 		}
-		setInput('')
-	}
-
-	function handlePass() {
-		if (passes > 0) {
-			setPasses(passes - 1)
-			const newWords = words.slice(1)
-			setWords(newWords)
-			setCurrentWord(shuffle(newWords[0] || ''))
-		}
-	}
-
-	function handleInput(e) {
-		setInput(e.target.value)
+		setArrangedLetters([])
 	}
 
 	function resetGame() {
-		setWords(shuffle(initialWords))
-		setCurrentWord(shuffle(words[0]))
-		setInput('')
 		setPoints(0)
 		setStrikes(0)
 		setPasses(3)
-		localStorage.clear()
-	}
-
-	if (words.length === 0 || strikes >= 3) {
-		return (
-			<div className='flex flex-col items-center justify-center h-screen bg-gray-100 p-4'>
-				<h2 className='text-2xl font-bold mb-4'>Game Over</h2>
-				<p className='text-lg mb-4'>Points: {points}</p>
-				<button
-					onClick={resetGame}
-					className='bg-blue-500 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition duration-300'
-				>
-					Play Again
-				</button>
-			</div>
-		)
+		setArrangedLetters([])
+		setFeedbackMessage('')
+		fetchWords()
 	}
 
 	return (
-		<div className='flex flex-col items-center justify-center h-screen bg-gray-100 p-4'>
-			<h2 className='text-2xl font-bold mb-4'>Scramble</h2>
-			<p className='text-lg mb-2'>Scrambled Word: {currentWord}</p>
-			<p className='mb-4'>
-				Points: {points} | Strikes: {strikes} | Passes: {passes}
-			</p>
-			<form onSubmit={handleGuess} className='flex flex-col items-center gap-4'>
-				<input
-					type='text'
-					value={input}
-					onChange={handleInput}
-					className={`form-input px-4 py-2 rounded border-2 border-gray-300 focus:border-blue-500 focus:outline-none transition duration-300 ${inputAnimation}`}
-				/>
-				<div className='flex gap-2'>
-					<button
-						type='submit'
-						className='bg-blue-500 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition duration-300'
+		<div
+			className='flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 space-y-4'
+			role='main'
+		>
+			<h2 className='text-2xl font-bold' id='gameTitle'>
+				Scramble Game
+			</h2>
+			<div
+				className='flex flex-wrap justify-center gap-2'
+				aria-labelledby='gameTitle'
+				aria-describedby='instructions'
+			>
+				<p id='instructions' className='sr-only'>
+					Drag and drop the letters to arrange them into a correct word.
+				</p>
+				{currentWord.split('').map((letter, index) => (
+					<div
+						key={index}
+						draggable='true'
+						onDragStart={(e) => handleDragStart(e, letter)}
+						className='w-12 h-12 flex items-center justify-center bg-white border border-gray-300 rounded shadow cursor-pointer select-none'
+						aria-grabbed='false'
+						role='gridcell'
+						aria-label={`Letter ${letter}`}
 					>
-						Guess
-					</button>
-					<button
-						type='button'
-						onClick={handlePass}
-						className='bg-red-500 text-white font-bold py-2 px-4 rounded hover:bg-red-700 transition duration-300'
+						{letter}
+					</div>
+				))}
+			</div>
+			<div
+				className='flex flex-wrap justify-center gap-2 border-2 border-dashed border-gray-400 p-4'
+				onDrop={handleDrop}
+				onDragOver={handleDragOver}
+				aria-dropeffect='move'
+				role='grid'
+				aria-label='Drop zone for arranging letters'
+			>
+				{arrangedLetters.map((letter, index) => (
+					<div
+						key={index}
+						className='w-12 h-12 flex items-center justify-center bg-white border border-gray-300 rounded shadow'
+						role='gridcell'
 					>
-						Pass
-					</button>
+						{letter}
+					</div>
+				))}
+			</div>
+			{feedbackMessage && (
+				<div
+					className='p-4 max-w-md bg-blue-100 border border-blue-400 text-blue-700 rounded-lg shadow'
+					role='alert'
+				>
+					<p>{feedbackMessage}</p>
 				</div>
-			</form>
+			)}
+			<button
+				onClick={submitWord}
+				className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
+				role='button'
+			>
+				Submit
+			</button>
+			<div role='status'>
+				Points: {points} | Strikes: {strikes} | Passes: {passes}
+			</div>
+			<button
+				onClick={resetGame}
+				className='bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded'
+				role='button'
+			>
+				Reset Game
+			</button>
 		</div>
 	)
 }
 
-const root = ReactDOM.createRoot(document.querySelector('#root'))
-root.render(<App />)
+const rootElement = document.getElementById('root')
+if (rootElement) {
+	const root = ReactDOM.createRoot(rootElement)
+	root.render(<App />)
+}
